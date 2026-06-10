@@ -11,9 +11,9 @@ var (
 	colorWhite  = lipgloss.Color("15")
 	colorBlack  = lipgloss.Color("0")
 
-	styleV = lipgloss.NewStyle().Foreground(colorGreen).Bold(true)
-	styleY = lipgloss.NewStyle().Foreground(colorYellow).Bold(true)
-	styleX = lipgloss.NewStyle().Foreground(colorRed).Bold(true)
+	styleVBadge = lipgloss.NewStyle().Background(colorGreen).Foreground(colorBlack).Bold(true).Padding(0, 1)
+	styleYBadge = lipgloss.NewStyle().Background(colorYellow).Foreground(colorBlack).Bold(true).Padding(0, 1)
+	styleXBadge = lipgloss.NewStyle().Background(colorRed).Foreground(colorWhite).Bold(true).Padding(0, 1)
 
 	styleBanner = lipgloss.NewStyle().
 			Foreground(colorCyan).
@@ -36,6 +36,10 @@ var (
 
 	styleDim = lipgloss.NewStyle().
 			Foreground(colorGray)
+
+	styleSectionHeader = lipgloss.NewStyle().
+				Foreground(colorCyan).
+				Bold(true)
 
 	styleSelected = lipgloss.NewStyle().
 			Background(colorCyan).
@@ -73,17 +77,18 @@ var (
 			Padding(0, 2)
 
 	styleFooterBar = lipgloss.NewStyle().
-			Foreground(colorGray)
+			Foreground(colorGray).
+			Padding(0, 1)
 )
 
 func statusStyle(s string) string {
 	switch s {
 	case "V":
-		return styleV.Render("V")
+		return styleVBadge.Render("V")
 	case "Y":
-		return styleY.Render("Y")
+		return styleYBadge.Render("Y")
 	case "X":
-		return styleX.Render("X")
+		return styleXBadge.Render("X")
 	default:
 		return styleDim.Render(s)
 	}

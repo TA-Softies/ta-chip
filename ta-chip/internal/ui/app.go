@@ -442,6 +442,7 @@ func (m *Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		switch msg.Type {
 		case tea.KeyEnter, tea.KeyTab:
 			m.screen = screenRemarks
+			return m, m.remarks.Focus()
 		case tea.KeyRunes:
 			switch strings.ToUpper(string(msg.Runes)) {
 			case "V":
@@ -469,6 +470,7 @@ func (m *Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			return m, m.doSubmit()
 		case tea.KeyEsc:
 			m.screen = screenRemarks
+			return m, m.remarks.Focus()
 		}
 
 	case screenDone:
@@ -560,6 +562,14 @@ func (m *Model) doSubmit() tea.Cmd {
 	}
 }
 
+func (m *Model) stepIndicator() string {
+	steps := []string{"", "1/7", "2/7", "3/7", "4/7", "5/7", "6/7", "7/7", "Review", "Done"}
+	if int(m.screen) < len(steps) {
+		return steps[m.screen]
+	}
+	return ""
+}
+
 // renderPage wraps content with a consistent header and footer.
 func (m *Model) renderPage(stepLabel, content, hint string) string {
 	w := m.width
@@ -567,9 +577,14 @@ func (m *Model) renderPage(stepLabel, content, hint string) string {
 		w = 120
 	}
 
-	// Header
+	// Header with step indicator
 	title := "  TA CHIP  ·  PC Health Inspector"
-	step := stepLabel + "  "
+	stepNum := m.stepIndicator()
+	stepDisplay := stepLabel
+	if stepNum != "" && stepLabel != "" {
+		stepDisplay = "[" + stepNum + "]  " + stepLabel
+	}
+	step := stepDisplay + "  "
 	gap := w - len(title) - len(step) - 4
 	if gap < 1 {
 		gap = 1
@@ -577,13 +592,14 @@ func (m *Model) renderPage(stepLabel, content, hint string) string {
 	headerText := title + strings.Repeat(" ", gap) + step
 	header := styleHeaderBar.Copy().Width(w).Render(headerText)
 
-	// Body — pad top so content appears vertically centered-ish
+	// Body
 	body := "\n" + content
 
-	// Footer
+	// Footer with separator rule
 	footer := ""
 	if hint != "" {
-		footer = "\n" + styleFooterBar.Render("  "+hint)
+		sep := "\n" + styleDim.Render(strings.Repeat("─", w))
+		footer = sep + "\n" + styleFooterBar.Render("  "+hint)
 	}
 
 	return lipgloss.JoinVertical(lipgloss.Left, header, body+footer)
@@ -672,7 +688,7 @@ func (m *Model) viewHardware() string {
 
 func (m *Model) viewKeyboardTest() string {
 	content := "\n" + renderKeyboardTestScreen(m.keyTest)
-	return m.renderPage("Keyboard & Mouse Test", content, "")
+	return m.renderPage("Keyboard & Mouse Test", content, "Type keys and click mouse buttons  •  Press Enter when done")
 }
 
 func (m *Model) viewSoftwareReview() string {
@@ -718,7 +734,7 @@ func (m *Model) viewSoftwareReview() string {
 			fixHint,
 		))
 	}
-	return m.renderPage("Software Review", sb.String(), "↑↓ navigate  •  V / Y / X override  •  Enter to continue")
+	return m.renderPage("Software Review", sb.String(), "↑↓ select  •  V / Y / X override  •  F fix wallpaper  •  B beep  •  L camera  •  Enter to continue")
 }
 
 func (m *Model) viewDomainTest() string {
@@ -770,9 +786,10 @@ func (m *Model) viewReview() string {
 
 	lines := []string{
 		"",
-		fmt.Sprintf("  %-28s %s", "PC Location", styleLabel.Render(r.hostname)),
-		fmt.Sprintf("  %-28s %s", "Rounder", styleLabel.Render(m.rounderInput.Value())),
-		fmt.Sprintf("  %-28s %s", "Started", styleDim.Render(m.startTime.Format("15:04"))),
+		fmt.Sprintf("  %-28s %s   %s", styleLabel.Render("PC"), styleLabel.Render(r.hostname), styleDim.Render(m.startTime.Format("15:04"))),
+		fmt.Sprintf("  %-28s %s", styleLabel.Render("Rounder"), styleLabel.Render(m.rounderInput.Value())),
+		"",
+		styleSectionHeader.Render("  HARDWARE"),
 		"",
 		fmt.Sprintf("  %-28s %s", "Display", statusStyle(hw(0))),
 		fmt.Sprintf("  %-28s %s  %s", "Mouse & Keyboard", statusStyle(m.keyTestStatus),
@@ -781,6 +798,8 @@ func (m *Model) viewReview() string {
 		fmt.Sprintf("  %-28s %s", "Conduiting", statusStyle(hw(2))),
 		fmt.Sprintf("  %-28s %s", "Tidiness", statusStyle(hw(3))),
 		"",
+		styleSectionHeader.Render("  SOFTWARE"),
+		"",
 		fmt.Sprintf("  %-28s %s", "Boot to Windows", statusStyle(sw(0))),
 		fmt.Sprintf("  %-28s %s  %s", "Time & Date", statusStyle(sw(1)), styleDim.Render(r.timeDetail)),
 		fmt.Sprintf("  %-28s %s", "Lockscreen Wallpaper", statusStyle(sw(2))),
@@ -788,16 +807,17 @@ func (m *Model) viewReview() string {
 		fmt.Sprintf("  %-28s %s", "Microsoft Office", statusStyle(sw(3))),
 		fmt.Sprintf("  %-28s %s", "Microsoft Teams", statusStyle(sw(4))),
 		fmt.Sprintf("  %-28s %s", "Internet", statusStyle(sw(5))),
-		fmt.Sprintf("  %-28s %s", "DeepFreeze Frozen", statusStyle(sw(6))),
-		fmt.Sprintf("  %-28s %s", "DeepFreeze Policy", styleDim.Render(r.df.PolicyName)),
+		fmt.Sprintf("  %-28s %s  %s", "DeepFreeze Frozen", statusStyle(sw(6)), styleDim.Render(r.df.PolicyName)),
 		fmt.Sprintf("  %-28s %s", "Windows Defender", statusStyle(sw(defenderRowIdx))),
 		fmt.Sprintf("  %-28s %s", "Windows Activation", statusStyle(sw(activationRowIdx))),
 		fmt.Sprintf("  %-28s %s", "Audio", statusStyle(sw(audioRowIdx))),
 		fmt.Sprintf("  %-28s %s", "Camera", statusStyle(sw(cameraRowIdx))),
 		"",
-		styleDim.Render(fmt.Sprintf("  %-28s %s", "Disk Space", fmt.Sprintf("%.1f GB free of %.1f GB", r.diskFree, r.diskTotal))),
-		styleDim.Render(fmt.Sprintf("  %-28s %s", "Windows", r.winVersion)),
-		styleDim.Render(fmt.Sprintf("  %-28s %s", "RAM", r.ram)),
+		styleSectionHeader.Render("  SYSTEM INFO"),
+		"",
+		styleDim.Render(fmt.Sprintf("  %-14s %s", "Disk", fmt.Sprintf("%.1f GB free of %.1f GB", r.diskFree, r.diskTotal))),
+		styleDim.Render(fmt.Sprintf("  %-14s %s", "Windows", r.winVersion)),
+		styleDim.Render(fmt.Sprintf("  %-14s %s  ·  Reboot: %s", "RAM", r.ram, r.lastReboot)),
 		"",
 		fmt.Sprintf("  %-28s %s", "Remarks", styleDim.Render(m.remarks.Value())),
 	}
