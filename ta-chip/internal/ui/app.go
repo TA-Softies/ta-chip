@@ -100,6 +100,9 @@ type Model struct {
 	submitErr  error
 	submitRow  int
 
+	// timing
+	startTime time.Time
+
 	// window size
 	width  int
 	height int
@@ -121,14 +124,15 @@ func New(cfg *config.Config) *Model {
 	rm.CharLimit = 512
 
 	return &Model{
-		cfg:          cfg,
-		screen:       screenBanner,
-		spinner:      sp,
-		rounderInput: ri,
-		hwResults:    make([]HardwareResult, len(hardwareItems)),
-		keyTest:      newKeyTestModel(),
+		cfg:           cfg,
+		screen:        screenBanner,
+		spinner:       sp,
+		rounderInput:  ri,
+		hwResults:     make([]HardwareResult, len(hardwareItems)),
+		keyTest:       newKeyTestModel(),
 		keyTestStatus: "V",
-		remarks:      rm,
+		remarks:       rm,
+		startTime:     time.Now(),
 	}
 }
 
@@ -395,7 +399,7 @@ func (m *Model) doSubmit() tea.Cmd {
 	data := submit.InspectionData{
 		PCLocation:     m.autoResults.hostname,
 		Rounder:        m.rounderInput.Value(),
-		ShiftTime:      time.Now().Format("15:04"),
+		ShiftTime:      m.startTime.Format("15:04"),
 		Display:        m.hwResults[0].Status,
 		MouseKeyboard:  m.keyTestStatus,
 		KensingtonLock: m.hwResults[1].Status,
@@ -574,7 +578,7 @@ func (m *Model) viewReview() string {
 		"",
 		fmt.Sprintf("  %-26s %s", "PC Location", styleLabel.Render(r.hostname)),
 		fmt.Sprintf("  %-26s %s", "Rounder", styleLabel.Render(m.rounderInput.Value())),
-		fmt.Sprintf("  %-26s %s", "Shift Time", styleDim.Render(time.Now().Format("15:04"))),
+		fmt.Sprintf("  %-26s %s", "Started", styleDim.Render(m.startTime.Format("15:04"))),
 		"",
 		fmt.Sprintf("  %-26s %s", "Display", statusStyle(hw(0))),
 		fmt.Sprintf("  %-26s %s  %s", "Mouse & Keyboard", statusStyle(m.keyTestStatus), styleDim.Render(fmt.Sprintf("(%d keys tested)", m.keyTest.pressedCount()))),
