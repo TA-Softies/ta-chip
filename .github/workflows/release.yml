@@ -1,0 +1,88 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*.*.*'
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0   # full history so we can diff against the previous tag
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.22'
+
+      - name: Build Windows amd64
+        run: |
+          cd ta-chip
+          GOOS=windows GOARCH=amd64 go build \
+            -ldflags="-X ta-chip/version.Version=${{ github.ref_name }}" \
+            -o ta-chip.exe .
+
+      - name: Generate changelog
+        id: changelog
+        run: |
+          CURRENT_TAG="${{ github.ref_name }}"
+          PREV_TAG=$(git tag --sort=-version:refname | grep -v "^${CURRENT_TAG}$" | head -n1)
+
+          if [ -z "$PREV_TAG" ]; then
+            RANGE="HEAD"
+            RANGE_LABEL="Initial release"
+          else
+            RANGE="${PREV_TAG}..${CURRENT_TAG}"
+            RANGE_LABEL="${PREV_TAG} → ${CURRENT_TAG}"
+          fi
+
+          echo "## Changes (${RANGE_LABEL})" > changelog.md
+          echo "" >> changelog.md
+
+          # Commit log
+          echo "### Commits" >> changelog.md
+          git log ${RANGE} --pretty=format:"- %s (%h)" --no-merges >> changelog.md
+          echo "" >> changelog.md
+          echo "" >> changelog.md
+
+          # File diff summary
+          if [ -z "$PREV_TAG" ]; then
+            echo "### Files added" >> changelog.md
+            git diff --name-status --diff-filter=A $(git rev-list --max-parents=0 HEAD) HEAD \
+              | awk '{print "- " $2}' >> changelog.md
+          else
+            echo "### Files changed" >> changelog.md
+            git diff --name-status ${PREV_TAG}..${CURRENT_TAG} \
+              | awk '{
+                  if ($1=="A") status="Added";
+                  else if ($1=="M") status="Modified";
+                  else if ($1=="D") status="Deleted";
+                  else if ($1=="R") status="Renamed";
+                  else status=$1;
+                  print "- " status ": " $2
+                }' >> changelog.md
+          fi
+
+          echo "" >> changelog.md
+
+          # Stats line
+          if [ -n "$PREV_TAG" ]; then
+            STATS=$(git diff --shortstat ${PREV_TAG}..${CURRENT_TAG})
+            echo "**Diff stats:** ${STATS}" >> changelog.md
+          fi
+
+          cat changelog.md
+          echo "changelog_file=changelog.md" >> $GITHUB_OUTPUT
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: ta-chip/ta-chip.exe
+          tag_name: ${{ github.ref_name }}
+          make_latest: true
+          body_path: changelog.md

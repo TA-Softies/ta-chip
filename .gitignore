@@ -1,0 +1,17 @@
+# Compiled binaries — distributed via GitHub Releases, not committed
+*.exe
+*.exe~
+
+# Go build artifacts
+ta-chip/vendor/
+
+# Editor / OS
+.vscode/
+.idea/
+*.swp
+*.swo
+Thumbs.db
+.DS_Store
+
+# Logs dropped by Launch.ps1
+*.log

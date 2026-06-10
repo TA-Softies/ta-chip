@@ -1,0 +1,13 @@
+{
+  "github_repo": "YOUR_ORG/ta-chip",
+  "appscript_url": "https://script.google.com/macros/s/YOUR_SCRIPT_ID/exec",
+  "domain_name": "TECHLAB",
+  "domain_test_user": "student",
+  "domain_test_password": "",
+  "expected_wallpaper": "",
+  "ntp_tolerance_seconds": 300,
+  "credentials": {
+    "login_user": ".\\student",
+    "login_pass": "student"
+  }
+}
