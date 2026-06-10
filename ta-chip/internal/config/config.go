@@ -19,6 +19,7 @@ type Config struct {
 	DomainTestUser     string      `json:"domain_test_user"`
 	DomainTestPassword string      `json:"domain_test_password"`
 	ExpectedWallpaper  string      `json:"expected_wallpaper"`
+	WallpaperScript    string      `json:"wallpaper_script"`
 	NTPToleranceSecs   int         `json:"ntp_tolerance_seconds"`
 	Credentials        Credentials `json:"credentials"`
 }
@@ -45,7 +46,7 @@ func Load() (*Config, error) {
 		cfg.NTPToleranceSecs = 300
 	}
 	if cfg.DomainName == "" {
-		cfg.DomainName = "TECHLAB"
+		cfg.DomainName = "techlab.apiit.edu.my"
 	}
 
 	return &cfg, nil

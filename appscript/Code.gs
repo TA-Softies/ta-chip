@@ -7,8 +7,12 @@ var SHEET_NAME = "Rounds";
 var COLUMNS = [
   "PC Location", "Rounder", "Time", "Display", "Mouse & Keyboard",
   "Kensington Lock", "Conduiting", "Tidiness", "Boot to Windows",
-  "Time & Date", "Wallpaper", "Domain (TECHLAB)", "Microsoft Office",
-  "Microsoft Teams", "Browser", "Frozen", "Policy Name", "Remarks", "Timestamp"
+  "Time & Date", "Wallpaper", "Domain", "Microsoft Office",
+  "Microsoft Teams", "Internet", "Frozen", "Policy Name",
+  "Disk Space", "Last Reboot", "Windows", "RAM",
+  "Monitor", "Keyboard", "Mouse",
+  "Defender", "Activation", "Audio", "Camera",
+  "Remarks", "Timestamp"
 ];
 
 var WEBHOOK_URL   = "https://arux.lrxrn.workers.dev/webhook?type=ta-chip";
@@ -45,9 +49,20 @@ function doPost(e) {
       d.domain            || "",
       d.microsoft_office  || "",
       d.microsoft_teams   || "",
-      d.browser           || "",
+      d.internet          || "",
       d.deepfreeze_frozen || "",
       d.deepfreeze_policy || "",
+      d.disk_space        || "",
+      d.last_reboot       || "",
+      d.win_version       || "",
+      d.ram               || "",
+      d.monitor           || "",
+      d.keyboard          || "",
+      d.mouse             || "",
+      d.defender          || "",
+      d.activation        || "",
+      d.audio             || "",
+      d.camera            || "",
       d.remarks           || "",
       d.timestamp         || ""
     ]);
@@ -80,7 +95,8 @@ function embedColor(d) {
   var checks = [
     d.display, d.mouse_keyboard, d.kensington_lock, d.conduiting, d.tidiness,
     d.boot_to_windows, d.time_date, d.wallpaper, d.domain,
-    d.microsoft_office, d.microsoft_teams, d.browser, d.deepfreeze_frozen
+    d.microsoft_office, d.microsoft_teams, d.internet, d.deepfreeze_frozen,
+    d.defender, d.activation
   ];
   if (checks.some(function(v) { return v === "X"; })) return 16711680; // red
   if (checks.some(function(v) { return v === "Y"; })) return 16776960; // yellow
@@ -103,7 +119,11 @@ function sendWebhook(d) {
     "Domain " + statusEmoji(d.domain),
     "Office " + statusEmoji(d.microsoft_office),
     "Teams " + statusEmoji(d.microsoft_teams),
-    "Browser " + statusEmoji(d.browser)
+    "Internet " + statusEmoji(d.internet),
+    "Defender " + statusEmoji(d.defender),
+    "Activation " + statusEmoji(d.activation),
+    "Audio " + statusEmoji(d.audio),
+    "Camera " + statusEmoji(d.camera)
   ].join("  ·  ");
 
   var dfValue = "Frozen " + statusEmoji(d.deepfreeze_frozen);
@@ -111,10 +131,21 @@ function sendWebhook(d) {
     dfValue += "  ·  Policy: " + d.deepfreeze_policy;
   }
 
+  var sysInfo = [
+    "Disk: " + (d.disk_space || "—"),
+    "Reboot: " + (d.last_reboot || "—"),
+    "OS: " + (d.win_version || "—"),
+    "RAM: " + (d.ram || "—"),
+    "Monitor: " + (d.monitor || "—"),
+    "Keyboard: " + (d.keyboard || "—"),
+    "Mouse: " + (d.mouse || "—")
+  ].join("  ·  ");
+
   var fields = [
     { name: "Hardware",    value: hw,      inline: false },
     { name: "Software",    value: sw,      inline: false },
-    { name: "DeepFreeze",  value: dfValue, inline: false }
+    { name: "DeepFreeze",  value: dfValue, inline: false },
+    { name: "System Info", value: sysInfo, inline: false }
   ];
 
   if (d.remarks && d.remarks.trim() !== "") {

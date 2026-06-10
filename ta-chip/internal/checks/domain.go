@@ -3,6 +3,7 @@ package checks
 import (
 	"fmt"
 	"os"
+	"strings"
 	"syscall"
 	"unsafe"
 
@@ -20,12 +21,17 @@ const (
 )
 
 // CheckDomainMembership compares USERDOMAIN env var to the expected domain name.
+// If USERDOMAIN equals COMPUTERNAME the machine is in a workgroup, which is also wrong.
 func CheckDomainMembership(domainName string) (status, detail string) {
 	current := os.Getenv("USERDOMAIN")
 	if current == "" {
 		return "X", "USERDOMAIN not set"
 	}
-	if current == domainName {
+	computerName := os.Getenv("COMPUTERNAME")
+	if computerName != "" && strings.EqualFold(current, computerName) {
+		return "X", "workgroup (not domain-joined)"
+	}
+	if strings.EqualFold(current, domainName) {
 		return "V", current
 	}
 	return "X", fmt.Sprintf("joined to %q, expected %q", current, domainName)

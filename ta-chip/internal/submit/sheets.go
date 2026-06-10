@@ -24,9 +24,20 @@ type InspectionData struct {
 	Domain         string `json:"domain"`
 	MSOffice       string `json:"microsoft_office"`
 	MSTeams        string `json:"microsoft_teams"`
-	Browser        string `json:"browser"`
+	Internet       string `json:"internet"`
 	DFFrozen       string `json:"deepfreeze_frozen"`
 	DFPolicy       string `json:"deepfreeze_policy"`
+	DiskSpace      string `json:"disk_space"`
+	LastReboot     string `json:"last_reboot"`
+	WinVersion     string `json:"win_version"`
+	RAM            string `json:"ram"`
+	Monitor        string `json:"monitor"`
+	Keyboard       string `json:"keyboard"`
+	Mouse          string `json:"mouse"`
+	Defender       string `json:"defender"`
+	Activation     string `json:"activation"`
+	Audio          string `json:"audio"`
+	Camera         string `json:"camera"`
 	Remarks        string `json:"remarks"`
 	Timestamp      string `json:"timestamp"`
 }

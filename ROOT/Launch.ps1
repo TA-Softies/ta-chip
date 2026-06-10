@@ -40,7 +40,7 @@ if (Test-Path $ConfigFile) {
 # ── Console Setup ──────────────────────────────────────────────────────────────
 chcp 65001 | Out-Null
 [Console]::OutputEncoding = [System.Text.Encoding]::UTF8
-$Host.UI.RawUI.WindowTitle = "ta-chip"
+$Host.UI.RawUI.WindowTitle = "TA CHIP  |  PC Health Inspector"
 try {
     $Host.UI.RawUI.BackgroundColor = "Black"
     $Host.UI.RawUI.ForegroundColor = "White"
@@ -73,7 +73,7 @@ function Write-Step { param([string]$I,[string]$M,[string]$C="White")
 function Write-Banner {
     Write-Host ""
     Write-Host "  ╔══════════════════════════════════════════════╗" -ForegroundColor Cyan
-    Write-Host "  ║   ta-chip  •  Health Inspection Platform     ║" -ForegroundColor Cyan
+    Write-Host "  ║   TA CHIP  •  PC Health Inspector            ║" -ForegroundColor Cyan
     Write-Host "  ╚══════════════════════════════════════════════╝" -ForegroundColor Cyan
     Write-Host ""
 }
@@ -159,7 +159,7 @@ Write-Host ""
 Write-Step ">>" "Launching ta-chip..." "Cyan"
 Write-Log "INFO" "Launching $TAChipExe"
 
-Start-Process -FilePath $TAChipExe -WorkingDirectory $ScriptRoot -Wait
+Start-Process -FilePath $TAChipExe -WorkingDirectory $ScriptRoot
 
 Write-Log "INFO" "ta-chip exited."
 Exit 0

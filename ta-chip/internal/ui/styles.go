@@ -48,15 +48,11 @@ var (
 				Padding(0, 1)
 
 	styleKeyPressed = lipgloss.NewStyle().
-			Background(colorGreen).
-			Foreground(colorBlack).
+			Foreground(colorGreen).
 			Bold(true)
 
 	styleKeyUnpressed = lipgloss.NewStyle().
-				Border(lipgloss.NormalBorder()).
-				BorderForeground(colorGray).
-				Foreground(colorGray).
-				Padding(0, 0)
+				Foreground(colorGray)
 
 	styleTableHeader = lipgloss.NewStyle().
 				Foreground(colorCyan).
@@ -69,6 +65,15 @@ var (
 	styleError = lipgloss.NewStyle().
 			Foreground(colorRed).
 			Bold(true)
+
+	styleHeaderBar = lipgloss.NewStyle().
+			Background(colorCyan).
+			Foreground(colorBlack).
+			Bold(true).
+			Padding(0, 2)
+
+	styleFooterBar = lipgloss.NewStyle().
+			Foreground(colorGray)
 )
 
 func statusStyle(s string) string {
@@ -91,4 +96,4 @@ const banner = `
      ██║   ██╔══██║    ██║     ██╔══██║██║██╔═══╝
      ██║   ██║  ██║    ╚██████╗██║  ██║██║██║
      ╚═╝   ╚═╝  ╚═╝     ╚═════╝╚═╝  ╚═╝╚═╝╚═╝
-  Technical Assistant Computer Health Inspection Platform`
+  PC Health Inspection Tool`

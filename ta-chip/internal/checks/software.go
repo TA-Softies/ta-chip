@@ -1,57 +1,69 @@
 package checks
 
 import (
+	"net"
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"golang.org/x/sys/windows/registry"
 )
 
-// CheckWallpaper reads the current wallpaper from registry.
-// If expected is non-empty, checks for exact match.
-// If empty, checks that a non-default wallpaper is set.
-func CheckWallpaper(expected string) (status, detail string) {
-	k, err := registry.OpenKey(registry.CURRENT_USER, `Control Panel\Desktop`, registry.QUERY_VALUE)
+// CheckInternet verifies internet connectivity by dialing Google DNS.
+func CheckInternet() (status, detail string) {
+	conn, err := net.DialTimeout("tcp", "8.8.8.8:53", 3*time.Second)
 	if err != nil {
-		return "X", "cannot read registry"
+		return "X", "no internet"
 	}
-	defer k.Close()
+	conn.Close()
+	return "V", "connected"
+}
 
-	val, _, err := k.GetStringValue("Wallpaper")
-	if err != nil || val == "" {
-		return "X", "no wallpaper set"
+// CheckWallpaper checks the lockscreen wallpaper via GPO/MDM registry keys.
+func CheckWallpaper(expected string) (status, detail string) {
+	type entry struct {
+		hive registry.Key
+		key  string
+		val  string
+	}
+	entries := []entry{
+		{registry.LOCAL_MACHINE, `SOFTWARE\Microsoft\Windows\CurrentVersion\PersonalizationCSP`, "LockScreenImagePath"},
+		{registry.LOCAL_MACHINE, `SOFTWARE\Policies\Microsoft\Windows\Personalization`, "LockScreenImage"},
 	}
 
-	if expected != "" {
-		if strings.EqualFold(val, expected) {
-			return "V", filepath.Base(val)
+	for _, e := range entries {
+		k, err := registry.OpenKey(e.hive, e.key, registry.QUERY_VALUE)
+		if err != nil {
+			continue
 		}
-		return "X", "wrong wallpaper: " + filepath.Base(val)
+		val, _, err := k.GetStringValue(e.val)
+		k.Close()
+		if err != nil || val == "" {
+			continue
+		}
+		if expected != "" {
+			if strings.EqualFold(val, expected) {
+				return "V", filepath.Base(val)
+			}
+			return "X", "wrong: " + filepath.Base(val)
+		}
+		return "V", filepath.Base(val)
 	}
 
-	// Default Windows wallpaper paths
-	lower := strings.ToLower(val)
-	if strings.Contains(lower, `windows\web\wallpaper\windows`) ||
-		strings.HasSuffix(lower, "img0.jpg") ||
-		val == "" {
-		return "X", "default Windows wallpaper"
-	}
-	return "V", filepath.Base(val)
+	return "X", "lockscreen wallpaper not set"
 }
 
 // CheckOffice returns V if any Office installation is detected.
 func CheckOffice() (status, detail string) {
-	// Check Click-to-Run config key
 	k, err := registry.OpenKey(registry.LOCAL_MACHINE,
 		`SOFTWARE\Microsoft\Office\ClickToRun\Configuration`,
 		registry.QUERY_VALUE)
 	if err == nil {
 		k.Close()
-		return "V", "Office (Click-to-Run)"
+		return "V", "Click-to-Run — verify login & launch"
 	}
 
-	// Check classic MSI install
 	k2, err := registry.OpenKey(registry.LOCAL_MACHINE,
 		`SOFTWARE\Microsoft\Office`,
 		registry.ENUMERATE_SUB_KEYS)
@@ -60,12 +72,11 @@ func CheckOffice() (status, detail string) {
 		subs, _ := k2.ReadSubKeyNames(-1)
 		for _, s := range subs {
 			if s != "ClickToRun" && s != "Common" && s != "Delivery" {
-				return "V", "Office " + s
+				return "V", "Office " + s + " — verify login & launch"
 			}
 		}
 	}
 
-	// Fallback: check for winword.exe
 	paths := []string{
 		`C:\Program Files\Microsoft Office\root\Office16\WINWORD.EXE`,
 		`C:\Program Files (x86)\Microsoft Office\root\Office16\WINWORD.EXE`,
@@ -73,85 +84,58 @@ func CheckOffice() (status, detail string) {
 	}
 	for _, p := range paths {
 		if _, err := os.Stat(p); err == nil {
-			return "V", "Office 2016+"
+			return "V", "Office 2016+ — verify login & launch"
 		}
 	}
 
 	return "X", "not found"
 }
 
-// CheckTeams returns V if Microsoft Teams is installed.
+// CheckTeams returns V if Microsoft Teams is installed, Y if installed but no session found.
 func CheckTeams() (status, detail string) {
 	localApp := os.Getenv("LOCALAPPDATA")
+	appData := os.Getenv("APPDATA")
 
 	paths := []string{
 		`C:\Program Files\Microsoft\Teams\current\Teams.exe`,
 		`C:\Program Files (x86)\Microsoft\Teams\current\Teams.exe`,
 		filepath.Join(localApp, `Microsoft\Teams\current\Teams.exe`),
-		// Teams 2.x (new Teams)
 		`C:\Program Files\WindowsApps\MSTeams_*`,
 	}
 
+	installed := false
 	for _, p := range paths {
 		if strings.Contains(p, "*") {
-			// glob check for new Teams
 			matches, _ := filepath.Glob(p)
 			if len(matches) > 0 {
-				return "V", "Teams (new)"
+				installed = true
+				break
 			}
 			continue
 		}
 		if _, err := os.Stat(p); err == nil {
-			return "V", "Teams"
+			installed = true
+			break
 		}
 	}
 
-	// Registry check for Teams machine-wide install
-	k, err := registry.OpenKey(registry.LOCAL_MACHINE,
-		`SOFTWARE\Microsoft\Teams`,
-		registry.QUERY_VALUE)
-	if err == nil {
-		k.Close()
-		return "V", "Teams (registry)"
-	}
-
-	return "X", "not found"
-}
-
-// CheckBrowser returns V if any modern browser is found.
-func CheckBrowser() (status, detail string) {
-	progFiles := os.Getenv("ProgramFiles")
-	progFiles86 := os.Getenv("ProgramFiles(x86)")
-	localApp := os.Getenv("LOCALAPPDATA")
-
-	browsers := map[string][]string{
-		"Chrome": {
-			filepath.Join(progFiles, `Google\Chrome\Application\chrome.exe`),
-			filepath.Join(progFiles86, `Google\Chrome\Application\chrome.exe`),
-			filepath.Join(localApp, `Google\Chrome\Application\chrome.exe`),
-		},
-		"Edge": {
-			filepath.Join(progFiles, `Microsoft\Edge\Application\msedge.exe`),
-			filepath.Join(progFiles86, `Microsoft\Edge\Application\msedge.exe`),
-		},
-		"Firefox": {
-			filepath.Join(progFiles, `Mozilla Firefox\firefox.exe`),
-			filepath.Join(progFiles86, `Mozilla Firefox\firefox.exe`),
-		},
-	}
-
-	var found []string
-	for name, paths := range browsers {
-		for _, p := range paths {
-			if _, err := os.Stat(p); err == nil {
-				found = append(found, name)
-				break
-			}
+	if !installed {
+		k, err := registry.OpenKey(registry.LOCAL_MACHINE, `SOFTWARE\Microsoft\Teams`, registry.QUERY_VALUE)
+		if err == nil {
+			k.Close()
+			installed = true
 		}
 	}
 
-	if len(found) == 0 {
-		return "X", "no browser found"
+	if !installed {
+		return "X", "not found"
 	}
-	return "V", strings.Join(found, ", ")
+
+	// Check for an existing session (classic Teams storage)
+	sessionFile := filepath.Join(appData, `Microsoft\Teams\storage.json`)
+	if _, err := os.Stat(sessionFile); err == nil {
+		return "V", "Installed, session found"
+	}
+
+	return "Y", "Installed — verify sign-in"
 }
