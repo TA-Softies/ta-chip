@@ -1,6 +1,6 @@
 {
-  "github_repo": "YOUR_ORG/ta-chip",
-  "appscript_url": "https://script.google.com/macros/s/YOUR_SCRIPT_ID/exec",
+  "github_repo": "TA-Softies/ta-chip",
+  "appscript_url": "https://script.google.com/macros/s/AKfycbxqryHNoNEWGeHaoq61n24OAf1-liP3a7Of6jCXthOZ_iEWLRyhEpzS8oFOJ9_BvC7v/exec",
   "domain_name": "TECHLAB",
   "domain_test_user": "student",
   "domain_test_password": "",
