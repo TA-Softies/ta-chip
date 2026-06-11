@@ -1,43 +1,43 @@
 <#
     .SYNOPSIS
-    ta-chip Launcher — checks for updates then runs ta-chip.exe
+    ta-chip Launcher -- downloads ta-chip-latest.exe from R2 and runs it
 
     .DESCRIPTION
     1. Self-elevates to admin if needed
-    2. Checks GitHub for a newer ta-chip.exe release
-    3. Downloads if newer (or missing)
-    4. Launches ta-chip.exe from the same directory
+    2. Downloads ta-chip-latest.exe from Cloudflare R2
+    3. Writes config.json to the same temp directory
+    4. Launches ta-chip.exe
 
-    This file is static — edit config.json instead.
+    To update config or the launcher itself, edit this file and push a new tag.
 #>
 
-# ── Require Administrator ──────────────────────────────────────────────────────
+# -- Config (edit here, then push a new tag to update R2) ----------------------
+$R2BaseUrl    = "https://ta-chip.lrxrn.dev"
+$AppScriptUrl = "https://script.google.com/macros/s/AKfycbxqryHNoNEWGeHaoq61n24OAf1-liP3a7Of6jCXthOZ_iEWLRyhEpzS8oFOJ9_BvC7v/exec"
+$DomainName   = "TECHLAB"
+$DomainUser   = "student"
+$DomainPass   = ""
+$NTPTolerance = 300
+$LoginUser    = ".\student"
+$LoginPass    = "student"
+
+# -- Require Administrator -----------------------------------------------------
 if (!([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole(
     [Security.Principal.WindowsBuiltInRole]"Administrator")) {
-    Start-Process powershell.exe "-NoProfile -ExecutionPolicy Bypass -File `"$PSCommandPath`"" -Verb RunAs
+    Start-Process powershell.exe "-NoProfile -ExecutionPolicy Bypass -C `"iex (irm '$R2BaseUrl/Launch.ps1')`"" -Verb RunAs
     Exit
 }
 
-# ── Configuration ──────────────────────────────────────────────────────────────
+# -- Paths ---------------------------------------------------------------------
 $ErrorActionPreference = "Stop"
-$ScriptRoot  = $PSScriptRoot
-$ExeName     = "ta-chip.exe"
-$TAChipExe   = Join-Path $ScriptRoot $ExeName
-$ConfigFile  = Join-Path $ScriptRoot "config.json"
-$LogFile     = Join-Path $env:TEMP "ta-chip_launch.log"
+$TempDir  = Join-Path $env:TEMP "ta-chip"
+$ExeDest  = Join-Path $TempDir  "ta-chip.exe"
+$CfgDest  = Join-Path $TempDir  "config.json"
+$LogFile  = Join-Path $env:TEMP "ta-chip_launch.log"
 
-# Read github_repo from config.json (fallback hardcoded if config missing)
-$GitHubRepo = "YOUR_ORG/ta-chip"
-if (Test-Path $ConfigFile) {
-    try {
-        $cfg = Get-Content $ConfigFile -Raw | ConvertFrom-Json
-        if ($cfg.github_repo -and $cfg.github_repo -notlike "*YOUR_ORG*") {
-            $GitHubRepo = $cfg.github_repo
-        }
-    } catch {}
-}
+if (-not (Test-Path $TempDir)) { New-Item -ItemType Directory $TempDir | Out-Null }
 
-# ── Console Setup ──────────────────────────────────────────────────────────────
+# -- Console Setup -------------------------------------------------------------
 chcp 65001 | Out-Null
 [Console]::OutputEncoding = [System.Text.Encoding]::UTF8
 $Host.UI.RawUI.WindowTitle = "TA CHIP  |  PC Health Inspector"
@@ -56,14 +56,14 @@ try {
 } catch {}
 Clear-Host
 
-# ── Logging ────────────────────────────────────────────────────────────────────
+# -- Logging -------------------------------------------------------------------
 function Write-Log { param([string]$L,[string]$M)
     "$(Get-Date -f 'yyyy-MM-dd HH:mm:ss')  [$L]  $M" |
         Out-File -FilePath $LogFile -Append -Encoding UTF8 -ErrorAction SilentlyContinue
 }
-Write-Log "START" "ta-chip Launch  |  Repo: $GitHubRepo"
+Write-Log "START" "ta-chip Launch  |  R2: $R2BaseUrl"
 
-# ── Styled Output ──────────────────────────────────────────────────────────────
+# -- Styled Output -------------------------------------------------------------
 function Write-Step { param([string]$I,[string]$M,[string]$C="White")
     Write-Host "  $I " -NoNewline -ForegroundColor Yellow
     Write-Host $M -ForegroundColor $C
@@ -72,94 +72,59 @@ function Write-Step { param([string]$I,[string]$M,[string]$C="White")
 
 function Write-Banner {
     Write-Host ""
-    Write-Host "  ╔══════════════════════════════════════════════╗" -ForegroundColor Cyan
-    Write-Host "  ║   TA CHIP  •  PC Health Inspector            ║" -ForegroundColor Cyan
-    Write-Host "  ╚══════════════════════════════════════════════╝" -ForegroundColor Cyan
+    Write-Host "  +================================================+" -ForegroundColor Cyan
+    Write-Host "  |   TA CHIP  *  PC Health Inspector              |" -ForegroundColor Cyan
+    Write-Host "  +================================================+" -ForegroundColor Cyan
     Write-Host ""
 }
 
-# ── Version Helpers ────────────────────────────────────────────────────────────
-function Get-CurrentVersion {
-    if (-not (Test-Path $TAChipExe)) { return [System.Version]"0.0.0" }
-    try {
-        $raw = (& $TAChipExe --version 2>&1) | Select-Object -First 1
-        $clean = ($raw -replace '[^0-9\.]','').Trim()
-        if ($clean -match '^\d+\.\d+') { return [System.Version]$clean }
-    } catch {}
-    return [System.Version]"0.0.0"
-}
-
-function Get-LatestRelease {
-    $url = "https://api.github.com/repos/$GitHubRepo/releases/latest"
-    try {
-        $ProgressPreference = 'SilentlyContinue'
-        $rel = Invoke-RestMethod -Uri $url -UseBasicParsing -ErrorAction Stop
-        $ProgressPreference = 'Continue'
-        return $rel
-    } catch {
-        Write-Log "WARN" "GitHub API failed: $($_.Exception.Message)"
-        return $null
-    }
-}
-
-function Download-Exe { param($Release)
-    $asset = $Release.assets | Where-Object { $_.name -eq $ExeName } | Select-Object -First 1
-    if (-not $asset) { Write-Log "WARN" "No $ExeName asset in release."; return $false }
-    try {
-        $ProgressPreference = 'SilentlyContinue'
-        Invoke-WebRequest -Uri $asset.browser_download_url -OutFile $TAChipExe -UseBasicParsing -ErrorAction Stop
-        $ProgressPreference = 'Continue'
-        Write-Step "OK" "$ExeName downloaded ($($Release.tag_name))" "Green"
-        Write-Log "INFO" "Downloaded $($asset.browser_download_url)"
-        return $true
-    } catch {
-        Write-Log "WARN" "Download failed: $($_.Exception.Message)"
-        return $false
-    }
-}
-
-# ══════════════════════════════════════════════════════════════════════════════
+# =============================================================================
 # MAIN
-# ══════════════════════════════════════════════════════════════════════════════
+# =============================================================================
 Write-Banner
-Set-Location $ScriptRoot
 
-# ── Check for updates ──────────────────────────────────────────────────────────
-$currentVer = Get-CurrentVersion
-Write-Step ">>" "Current version: $currentVer" "Gray"
-
-$release = Get-LatestRelease
-if ($release) {
-    $latestRaw  = ($release.tag_name -replace '[^0-9\.]','').Trim()
-    if ($latestRaw -match '^\d+\.\d+') {
-        $latestVer = [System.Version]$latestRaw
-        if ($latestVer -gt $currentVer) {
-            Write-Step ">>" "Update available: $latestVer  (current: $currentVer)" "Cyan"
-            $null = Download-Exe -Release $release
-        } else {
-            Write-Step "OK" "Up to date ($currentVer)" "Green"
-        }
+# -- Download exe from R2 ------------------------------------------------------
+Write-Step ">>" "Downloading ta-chip-latest.exe..." "Cyan"
+try {
+    $ProgressPreference = "SilentlyContinue"
+    Invoke-WebRequest -Uri "$R2BaseUrl/ta-chip-latest.exe" -OutFile $ExeDest -UseBasicParsing -ErrorAction Stop
+    $ProgressPreference = "Continue"
+    Write-Step "OK" "Downloaded ta-chip-latest.exe" "Green"
+    Write-Log "INFO" "Downloaded $R2BaseUrl/ta-chip-latest.exe -> $ExeDest"
+} catch {
+    $ProgressPreference = "Continue"
+    Write-Log "WARN" "Download failed: $($_.Exception.Message)"
+    if (-not (Test-Path $ExeDest)) {
+        Write-Host ""
+        Write-Host "  ta-chip.exe could not be downloaded." -ForegroundColor Red
+        Write-Host "  Check your internet connection and try again." -ForegroundColor Yellow
+        Write-Host ""
+        Write-Log "ERROR" "ta-chip.exe missing after download failure."
+        $null = [Console]::ReadKey($true)
+        Exit 1
     }
-} else {
-    Write-Step "!!" "Could not reach GitHub — skipping update check" "Yellow"
+    Write-Step "!!" "Download failed -- using cached copy" "Yellow"
 }
 
-# ── Launch ─────────────────────────────────────────────────────────────────────
-if (-not (Test-Path $TAChipExe)) {
-    Write-Host ""
-    Write-Host "  ta-chip.exe not found and could not be downloaded." -ForegroundColor Red
-    Write-Host "  Place ta-chip.exe in: $ScriptRoot" -ForegroundColor Yellow
-    Write-Host ""
-    Write-Log "ERROR" "ta-chip.exe missing after update attempt."
-    $null = [Console]::ReadKey($true)
-    Exit 1
+# -- Write config.json ---------------------------------------------------------
+$cfg = [ordered]@{
+    appscript_url         = $AppScriptUrl
+    domain_name           = $DomainName
+    domain_test_user      = $DomainUser
+    domain_test_password  = $DomainPass
+    ntp_tolerance_seconds = $NTPTolerance
+    credentials           = [ordered]@{ login_user = $LoginUser; login_pass = $LoginPass }
 }
+$json = $cfg | ConvertTo-Json -Depth 3
+[System.IO.File]::WriteAllText($CfgDest, $json, [System.Text.UTF8Encoding]::new($false))
+Write-Log "INFO" "Wrote config.json to $CfgDest"
 
+# -- Launch --------------------------------------------------------------------
 Write-Host ""
 Write-Step ">>" "Launching ta-chip..." "Cyan"
-Write-Log "INFO" "Launching $TAChipExe"
+Write-Log "INFO" "Launching $ExeDest"
 
-Start-Process -FilePath $TAChipExe -WorkingDirectory $ScriptRoot
+Start-Process -FilePath $ExeDest -WorkingDirectory $TempDir
 
-Write-Log "INFO" "ta-chip exited."
+Write-Log "INFO" "ta-chip launched."
 Exit 0

