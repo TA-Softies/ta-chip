@@ -2,24 +2,29 @@
 
 **Technical Assistant Computer Health Inspection Platform**
 
-A RP2040 USB device that automatically logs into a lab PC and launches a guided inspection tool. The tool walks through hardware and software checks, then submits the results directly to a Google Sheet.
+A RP2040 USB device that automatically logs into a lab PC and launches a guided inspection tool. The tool runs automated checks, walks through hardware and software items, then submits the results directly to a Google Sheet.
 
 ---
 
 ## How it works
 
 1. Plug the RP2040 into a lab PC
-2. It locks the screen, signs in as `.\student`, then launches the inspection tool automatically
-3. The tool runs automated software checks (Office, Teams, browser, DeepFreeze, domain, time sync, wallpaper)
+2. The device signs out the current user, signs in as `.\student`, then launches the inspection tool automatically via an elevated PowerShell run
+3. The tool runs automated checks in parallel:
+   - System: hostname, time sync (NTP), disk space, last reboot, Windows version, RAM
+   - Software: lockscreen wallpaper, Microsoft Office, Teams, internet (TCP), DeepFreeze frozen/policy, Windows Defender, Windows Activation
+   - Hardware detection: monitor, keyboard, mouse, audio device, camera
+   - Domain: membership check + test login
 4. You confirm hardware items (display, Kensington lock, cable management, tidiness) and run a keyboard/mouse test
-5. Results are submitted to Google Sheets with a single keypress
+5. Software results are reviewed with the option to override any status
+6. Results are submitted to Google Sheets automatically
 
 ---
 
 ## Requirements
 
-- RP2040 board (Raspberry Pi Pico or similar) with CircuitPython 9.x
-- `adafruit_hid` CircuitPython library on the device
+- RP2040 board (VCC-GND YD RP2040 or similar) with CircuitPython 9.x
+- `adafruit_hid` CircuitPython library installed on the device
 - Windows 10/11 lab PC joined to the `TECHLAB` domain
 - A Google account to host the AppScript
 - Go 1.22+ (only needed if building from source)
@@ -32,12 +37,12 @@ A RP2040 USB device that automatically logs into a lab PC and launches a guided 
 
 1. Create a new Google Sheet
 2. Go to **Extensions → Apps Script**
-3. Delete any existing code and paste the contents of [`appscript/Code.gs`](appscript/Code.gs)
+3. Paste the contents of [`appscript/Code.gs`](appscript/Code.gs)
 4. Click **Deploy → New deployment**
    - Type: **Web app**
    - Execute as: **Me**
    - Who has access: **Anyone**
-5. Click **Deploy** and copy the `/exec` URL — you'll need it in the next step
+5. Copy the `/exec` URL — you'll need it in the next step
 
 ### 2. Config file
 
@@ -66,69 +71,72 @@ Edit `ROOT/config.json`:
 | `domain_name` | Domain to verify against (`USERDOMAIN` env var) |
 | `domain_test_user` | Account used to test domain login |
 | `domain_test_password` | Password for the domain test account (blank if none) |
-| `expected_wallpaper` | Full path to the required wallpaper file. Leave blank to just check that *any* custom wallpaper is set |
-| `ntp_tolerance_seconds` | How many seconds of clock drift is acceptable before marking as `Y` (default 300 = 5 min) |
+| `expected_wallpaper` | Full path to the required lockscreen image. Leave blank to just check that any custom wallpaper is set |
+| `ntp_tolerance_seconds` | Clock drift tolerance before marking as `Y` (default 300 = 5 min) |
 | `credentials` | Username and password the RP2040 types during auto-login |
 
 ### 3. Flash the RP2040
 
-1. Download CircuitPython 9.x for your board from [circuitpython.org](https://circuitpython.org/downloads)
-2. Hold BOOTSEL and plug in the RP2040 — it mounts as `RPI-RP2`
-3. Drag the `.uf2` file onto the drive — it reboots as `CIRCUITPY`
-4. Install the `adafruit_hid` library:
-   - Download the CircuitPython library bundle from [circuitpython.org/libraries](https://circuitpython.org/libraries)
-   - Copy `adafruit_hid/` from the bundle into `CIRCUITPY/lib/`
-5. Copy `boot.py` and `code.py` to the **root** of the `CIRCUITPY` drive
-
-> **Note:** After copying `boot.py`, the CIRCUITPY drive will no longer appear as a USB drive on the host PC. To edit files on it again, hold a button (or short GP0 to GND on a Pico) while plugging in, which skips `boot.py`.
-
-### 4. Deploy to the device
-
-Copy the entire `ROOT/` folder to the root of the `CIRCUITPY` drive:
+Run the setup wizard — it handles everything automatically:
 
 ```
-CIRCUITPY/
-├── boot.py
-├── code.py
-└── ROOT/
-    ├── Launch.ps1
-    ├── config.json
-    └── ta-chip.exe        ← download from Releases, or build from source
+Right-click setup.ps1 → Run with PowerShell
 ```
 
-`ta-chip.exe` is downloaded automatically by `Launch.ps1` on first run if internet is available. To pre-load it, grab the latest `.exe` from the [Releases](../../releases) page and place it in `ROOT/`.
+| Option | When to use |
+|--------|-------------|
+| **[1] Smart Install** | First-time setup or normal update. Auto-detects whether the board is in bootloader (RPI-RP2) or normal (CIRCUITPY) mode |
+| **[2] Force Reset** | Board is stuck or corrupted. Wipes the flash, reflashes firmware, reinstalls everything |
+| **[3] Update Payload** | You only changed `code.py` or `ROOT/` contents and the firmware is already correct |
+
+The wizard flashes CircuitPython, installs `adafruit_hid`, and copies `boot.py`, `code.py`, and `ROOT/` to the device. The `firmware/` folder already contains the required files.
+
+> **After `boot.py` is installed:** the CIRCUITPY drive will no longer appear on the host PC (by design — `boot.py` disables it). To edit files again, hold the BOOT button while plugging in to skip `boot.py`.
 
 ---
 
 ## Usage
 
-1. Plug the RP2040 into any lab PC
-2. The onboard LED lights up — the device is running the login sequence
-3. After the LED turns off, the inspection tool opens automatically
-4. Follow the on-screen prompts:
-   - **Auto-checks screen** — wait for all checks to complete, then press Enter
-   - **Rounder** — type your name and press Enter
-   - **Hardware checks** — press `V`, `Y`, or `X` for each item (or use arrow keys + Enter)
-   - **Keyboard test** — press every key you want to test, click each mouse button, then press Enter
-   - **Software review** — auto-check results are shown; use arrow keys to navigate and `V`/`Y`/`X` to override any result
-   - **Domain test** — shows membership and login test result; override with `V`/`Y`/`X` if needed
-   - **Remarks** — optional notes; press Tab to skip
-   - **Review** — check everything looks correct, then press Enter to submit
-5. Results appear instantly in the Google Sheet
+1. Plug the RP2040 into a lab PC that has a user already logged in
+2. The onboard LED lights up while the login sequence runs
+3. After the LED turns off the inspection tool opens — work through each screen in order:
+
+| Step | Screen | What to do |
+|------|--------|------------|
+| 1/7 | **Auto Checks** | Wait for checks to complete, then press Enter |
+| 2/7 | **Rounder** | Type your name and press Enter |
+| 3/7 | **Hardware** | Press `V`, `Y`, or `X` for each item (or arrow keys + Enter) |
+| 4/7 | **Keyboard & Mouse Test** | Press keys and click mouse buttons, then press Enter |
+| 5/7 | **Software Review** | Review auto-check results; navigate with `↑↓`, override with `V`/`Y`/`X` |
+| 6/7 | **Domain Test** | Shows membership + login test; override with `V`/`Y`/`X` if needed |
+| 7/7 | **Remarks** | Optional notes; press Tab to skip |
+| Review | **Review** | Confirm everything looks correct, then press Enter to submit |
+
+4. Results appear in the Google Sheet instantly
+
+### Software review key actions
+
+When a row is focused in the Software Review screen, extra keys are available:
+
+| Key | Row | Action |
+|-----|-----|--------|
+| `F` | Lockscreen Wallpaper | Downloads and applies the correct lockscreen image |
+| `B` | Audio | Plays a short beep to confirm audio output is working |
+| `L` | Camera | Opens the Windows Camera app to verify the camera |
 
 ### Status codes
 
 | Code | Meaning |
 |------|---------|
 | `V` | Working / present / pass |
-| `Y` | Partially working / unsecured / minor issue |
+| `Y` | Partially working / minor issue |
 | `X` | Faulty / missing / fail |
 
 ---
 
 ## Auto-update
 
-`Launch.ps1` checks the GitHub releases API every time it runs. If a newer `ta-chip.exe` is available, it downloads and replaces the local copy automatically before launching. No manual updates needed.
+`Launch.ps1` checks the GitHub releases API every time it runs. If a newer `ta-chip.exe` is available it downloads and replaces the local copy before launching. No manual updates needed on lab PCs.
 
 ---
 
@@ -136,31 +144,32 @@ CIRCUITPY/
 
 ```powershell
 cd ta-chip
-go build -ldflags="-X ta-chip/version.Version=v1.0.0" -o ..\ROOT\ta-chip.exe .
+$env:GOOS="windows"; $env:GOARCH="amd64"
+go build -ldflags="-X ta-chip/version.Version=v0.3.0" -o ..\ROOT\ta-chip.exe .
 ```
 
-Requires Go 1.22+. The binary is Windows-only (`GOOS=windows GOARCH=amd64`).
+Requires Go 1.22+. The binary is Windows-only (uses `advapi32.dll` and Windows registry APIs).
+
+When running locally without `-ldflags` the version shows as `dev-<githash>`.
 
 ---
 
 ## Releasing
 
-Tag the commit and push — GitHub Actions builds the exe and publishes the release automatically:
+Tag the commit and push — GitHub Actions cross-compiles the exe and publishes the release automatically:
 
 ```bash
-git tag v1.0.0
-git push origin v1.0.0
+git tag v0.4.0
+git push origin v0.4.0
 ```
-
-The release includes a changelog of all commits since the previous tag.
 
 ---
 
 ## DeepFreeze notes
 
-- `ta-chip.exe` calls `C:\Windows\SysWOW64\DFC.exe get /ISFROZEN`
-- Exit code `1` = Frozen (pass), `0` = Thawed (fail)
-- Policy name is read from the registry under `HKLM\SOFTWARE\Faronics\Deep Freeze 6`; the exact key name varies by version — check with `reg query "HKLM\SOFTWARE\Faronics" /s` on a lab PC if it shows `N/A`
+- Calls `C:\Windows\SysWOW64\DFC.exe get /ISFROZEN`
+- Exit code `1` = Frozen (V), `0` = Thawed (X), not found = N/A
+- Policy name is read from `HKLM\SOFTWARE\Faronics\Deep Freeze 6` — the exact key name varies by version; run `reg query "HKLM\SOFTWARE\Faronics" /s` on a lab PC if it shows N/A
 
 ---
 
@@ -168,20 +177,37 @@ The release includes a changelog of all commits since the previous tag.
 
 ```
 ta-chip/
-├── boot.py                  CircuitPython: enable HID keyboard, disable serial
-├── code.py                  CircuitPython: auto-login + launch sequence
-├── ROOT/                    Deploy this folder to CIRCUITPY:\ROOT\
-│   ├── Launch.ps1           PowerShell launcher (auto-update + run)
-│   └── config.json          Runtime configuration
-├── ta-chip/                 Go source
+├── boot.py                    CircuitPython: enable HID keyboard, disable USB drive
+├── code.py                    CircuitPython: auto sign-out/sign-in + launch sequence
+├── setup.ps1                  Board setup wizard (flash firmware, install libs, deploy)
+├── firmware/
+│   ├── flash_nuke.uf2         Wipes RP2040 flash (used by Force Reset)
+│   ├── adafruit-circuitpython-vcc_gnd_yd_rp2040-*.uf2   CircuitPython firmware
+│   └── adafruit-circuitpython-bundle-9.x-*.zip          Library bundle (adafruit_hid)
+├── ROOT/                      Deployed to CIRCUITPY:\ROOT\ by setup.ps1
+│   ├── Launch.ps1             Auto-update launcher
+│   ├── config.json            Runtime configuration
+│   └── ta-chip.exe            Windows inspection tool (download from Releases)
+├── ta-chip/                   Go source
 │   ├── main.go
 │   └── internal/
-│       ├── checks/          Automated checks (system, software, DeepFreeze, domain)
-│       ├── config/          Config loading
-│       ├── submit/          Google Sheets submission
-│       └── ui/              Bubble Tea TUI
+│       ├── checks/
+│       │   ├── system.go      Hostname, NTP time check
+│       │   ├── sysinfo.go     Disk, RAM, reboot time, Windows version, Defender,
+│       │   │                  Activation, hardware WMI queries, beep
+│       │   ├── software.go    Office, Teams, internet, wallpaper checks
+│       │   ├── deepfreeze.go  DFC.exe + registry policy name
+│       │   └── domain.go      Domain membership + LogonUserW test
+│       ├── config/            Config loading
+│       ├── submit/            Google Sheets submission
+│       └── ui/
+│           ├── app.go         11-screen state machine
+│           ├── hardware.go    Hardware prompt screens
+│           ├── keyboard.go    Keyboard/mouse test screen
+│           ├── set_lockscreen.ps1   Embedded lockscreen fix script
+│           └── styles.go      Lipgloss styles
 ├── appscript/
-│   └── Code.gs              Google Apps Script for the Sheet
+│   └── Code.gs                Google Apps Script (sheet writer + Discord webhook)
 └── .github/workflows/
-    └── release.yml          Build + publish on version tag
+    └── release.yml            Build + publish on version tag
 ```
