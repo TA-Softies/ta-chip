@@ -90,8 +90,8 @@ kbd.press(Keycode.ENTER)
 time.sleep(0.1)
 kbd.release_all()
 
-# 9. Wait for login and desktop to settle
-time.sleep(6.0)
+# 9. Wait for login and desktop to settle before triggering the launch script
+time.sleep(10.0)
 
 # 10. Minimize all windows so Run dialog opens cleanly
 kbd.press(Keycode.GUI, Keycode.D)
@@ -116,10 +116,15 @@ kbd.press(Keycode.LEFT_CONTROL, Keycode.LEFT_SHIFT, Keycode.ENTER)
 time.sleep(0.1)
 kbd.release_all()
 
-# 14. Accept UAC — Alt+Y up to 4 times, 3 s apart
+# 14. Accept UAC — first attempt at 1.5 s (UAC appears within ~1 s),
+#     then 3 more attempts at 2.5 s apart in case of slow render.
 #     Extra presses after dismissal land on a hidden window and are harmless.
-for _ in range(4):
-    time.sleep(3.0)
+time.sleep(1.5)
+kbd.press(Keycode.ALT, Keycode.Y)
+time.sleep(0.1)
+kbd.release_all()
+for _ in range(3):
+    time.sleep(2.5)
     kbd.press(Keycode.ALT, Keycode.Y)
     time.sleep(0.1)
     kbd.release_all()
