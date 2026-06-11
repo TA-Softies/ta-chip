@@ -331,6 +331,33 @@ if (Test-Path $destRoot) {
 Copy-WithProgress -Source $RootPath -Destination $destRoot -Label "Copying ROOT folder"
 Write-OK "ROOT folder"
 
+# --- ta-chip.exe: try latest GitHub release, fall back to local build ---
+$exeTag = $null
+Write-Host ""
+Write-Step "Fetching latest ta-chip.exe from GitHub..."
+try {
+    $headers = @{ "User-Agent" = "ta-chip-setup" }
+    $rel     = Invoke-RestMethod -Uri "https://api.github.com/repos/TA-Softies/ta-chip/releases/latest" `
+                   -Headers $headers -TimeoutSec 10 -ErrorAction Stop
+    $asset   = $rel.assets | Where-Object { $_.name -match "\.exe$" } | Select-Object -First 1
+    if ($asset) {
+        $tmpExe = Join-Path $env:TEMP $asset.name
+        Invoke-WebRequest -Uri $asset.browser_download_url -OutFile $tmpExe `
+            -Headers $headers -UseBasicParsing -TimeoutSec 60 -ErrorAction Stop
+        Copy-Item -Path $tmpExe -Destination (Join-Path $destRoot "ta-chip.exe") -Force
+        Remove-Item $tmpExe -ErrorAction SilentlyContinue
+        $exeTag = $rel.tag_name
+        Write-OK "ta-chip.exe  <- $($asset.name) ($exeTag) [GitHub]"
+    } else {
+        Write-Warn "No .exe asset in latest release — keeping local build"
+    }
+} catch {
+    Write-Warn "GitHub unreachable — keeping local ta-chip.exe"
+}
+if (-not $exeTag) {
+    Write-OK "ta-chip.exe  <- local dev build"
+}
+
 # ==========================================
 # DONE
 # ==========================================
@@ -345,7 +372,8 @@ $steps = switch ($installMode) {
     "UPDATE"       { "HID library, payload" }
     "PAYLOAD_ONLY" { "Payload only (code.py + ROOT)" }
 }
-Write-Host "  Installed: $steps" -ForegroundColor White
+$exeNote = if ($exeTag) { " + ta-chip.exe $exeTag" } else { " + ta-chip.exe (local)" }
+Write-Host "  Installed: $steps$exeNote" -ForegroundColor White
 Write-Host ""
 Write-Host "  Safely eject the drive, then unplug and replug to run." -ForegroundColor Yellow
 Write-Host ""
